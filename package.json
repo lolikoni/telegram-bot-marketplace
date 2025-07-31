@@ -1,19 +1,13 @@
 {
   "name": "telegram-bot-marketplace",
   "version": "1.0.0",
-  "description": "Telegram bot for creating product cards for marketplaces",
+  "description": "🤖 Telegram Bot для создания карточек товаров с AI",
   "main": "index.js",
   "scripts": {
     "start": "n8n start",
     "dev": "n8n start --tunnel",
-    "setup": "./setup.sh",
-    "backup": "./backup.sh",
-    "logs": "./logs.sh",
-    "clean": "./clean.sh",
-    "deploy": "./deploy.sh",
-    "railway:deploy": "railway up",
-    "railway:logs": "railway logs",
-    "railway:status": "railway status"
+    "build": "echo 'No build step required'",
+    "test": "echo 'No tests specified'"
   },
   "keywords": [
     "telegram",
@@ -35,7 +29,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/telegram-bot-marketplace.git"
+    "url": "https://github.com/lolikoni/telegram-bot-marketplace.git"
   },
-  "homepage": "https://github.com/your-username/telegram-bot-marketplace#readme"
+  "homepage": "https://github.com/lolikoni/telegram-bot-marketplace#readme"
 } 
