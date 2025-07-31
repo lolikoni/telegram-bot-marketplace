@@ -1,0 +1,41 @@
+{
+  "name": "telegram-bot-marketplace",
+  "version": "1.0.0",
+  "description": "Telegram bot for creating product cards for marketplaces",
+  "main": "index.js",
+  "scripts": {
+    "start": "n8n start",
+    "dev": "n8n start --tunnel",
+    "setup": "./setup.sh",
+    "backup": "./backup.sh",
+    "logs": "./logs.sh",
+    "clean": "./clean.sh",
+    "deploy": "./deploy.sh",
+    "railway:deploy": "railway up",
+    "railway:logs": "railway logs",
+    "railway:status": "railway status"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "marketplace",
+    "n8n",
+    "automation",
+    "ai",
+    "product-cards"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "n8n": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/telegram-bot-marketplace.git"
+  },
+  "homepage": "https://github.com/your-username/telegram-bot-marketplace#readme"
+} 

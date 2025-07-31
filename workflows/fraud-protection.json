@@ -1,0 +1,485 @@
+{
+  "name": "Fraud Protection Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fraud-check",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "fraud-check-webhook",
+      "name": "Fraud Check Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "fraud-check-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "required-fields",
+              "leftValue": "={{ $json.userId && $json.ipAddress && $json.action }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-fraud-check",
+      "name": "Validate Fraud Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "url": "={{ $env.DATABASE_URL }}/fraud-logs?userId={{ $json.userId }}&timeRange=1h",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-user-activity",
+      "name": "Get User Activity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 200],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "high-activity",
+              "leftValue": "={{ $json.data.length > 50 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-activity-level",
+      "name": "Check Activity Level",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "url": "https://api.ipapi.com/{{ $json.ipAddress }}",
+        "options": {}
+      },
+      "id": "check-ip-location",
+      "name": "Check IP Location",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "suspicious-location",
+              "leftValue": "={{ $json.country_code }}",
+              "rightValue": "RU",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-location-suspicious",
+      "name": "Check Location Suspicious",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "={{ $env.DATABASE_URL }}/fraud-logs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "ipAddress",
+              "value": "={{ $json.ipAddress }}"
+            },
+            {
+              "name": "action",
+              "value": "={{ $json.action }}"
+            },
+            {
+              "name": "riskScore",
+              "value": "={{ $('Check Activity Level').item.json.riskScore || 0 }}"
+            },
+            {
+              "name": "location",
+              "value": "={{ $('Check IP Location').item.json.country_name || 'Unknown' }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $now }}"
+            },
+            {
+              "name": "status",
+              "value": "flagged"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-suspicious-activity",
+      "name": "Log Suspicious Activity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 200],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "={{ $env.DATABASE_URL }}/users/{{ $json.userId }}/block",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "reason",
+              "value": "Suspicious activity detected"
+            },
+            {
+              "name": "blockedAt",
+              "value": "={{ $now }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "block-user",
+      "name": "Block User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 200],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "{{ $env.ADMIN_TELEGRAM_ID }}"
+            },
+            {
+              "name": "text",
+              "value": "🚨 <b>Подозрительная активность обнаружена!</b>\n\n👤 <b>Пользователь ID:</b> {{ $json.userId }}\n🌍 <b>IP адрес:</b> {{ $json.ipAddress }}\n📍 <b>Локация:</b> {{ $('Check IP Location').item.json.country_name }}\n⚠️ <b>Действие:</b> {{ $json.action }}\n\n🔒 <b>Статус:</b> Пользователь заблокирован"
+            },
+            {
+              "name": "parse_mode",
+              "value": "HTML"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-admin",
+      "name": "Notify Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1560, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-api-credentials",
+          "name": "Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"blocked\", \"message\": \"User blocked due to suspicious activity\", \"riskScore\": $('Check Activity Level').item.json.riskScore } }}",
+        "options": {}
+      },
+      "id": "fraud-blocked-response",
+      "name": "Fraud Blocked Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"allowed\", \"message\": \"Activity check passed\", \"riskScore\": 0 } }}",
+        "options": {}
+      },
+      "id": "fraud-allowed-response",
+      "name": "Fraud Allowed Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Invalid fraud check data\" } }}",
+        "options": {}
+      },
+      "id": "fraud-validation-error",
+      "name": "Fraud Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Fraud Check Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Fraud Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Fraud Check": {
+      "main": [
+        [
+          {
+            "node": "Get User Activity",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check IP Location",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fraud Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Activity": {
+      "main": [
+        [
+          {
+            "node": "Check Activity Level",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Activity Level": {
+      "main": [
+        [
+          {
+            "node": "Log Suspicious Activity",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fraud Allowed Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check IP Location": {
+      "main": [
+        [
+          {
+            "node": "Check Location Suspicious",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Location Suspicious": {
+      "main": [
+        [
+          {
+            "node": "Log Suspicious Activity",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fraud Allowed Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Suspicious Activity": {
+      "main": [
+        [
+          {
+            "node": "Block User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Block User": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Admin": {
+      "main": [
+        [
+          {
+            "node": "Fraud Blocked Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "fraud-protection",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "fraud-protection",
+      "name": "fraud-protection"
+    }
+  ]
+} 

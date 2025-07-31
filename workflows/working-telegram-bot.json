@@ -1,0 +1,138 @@
+{
+  "name": "Working Telegram Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-1",
+      "name": "Telegram Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "telegram-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.message.text }}",
+              "operation": "equals",
+              "value2": "/start"
+            }
+          ]
+        }
+      },
+      "id": "if-1",
+      "name": "If /start",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "👋 Привет! Я бот для создания карточек товаров.\n\nКоманды:\n/help - Справка\n/create - Создать карточку\n/profile - Профиль\n/payment - Платежи"
+      },
+      "id": "telegram-1",
+      "name": "Send Welcome",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [680, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-bot-credentials",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "❓ Неизвестная команда. Используйте /help"
+      },
+      "id": "telegram-2",
+      "name": "Send Unknown",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [680, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-bot-credentials",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\": \"ok\"}"
+      },
+      "id": "response-1",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Telegram Webhook": {
+      "main": [
+        [
+          {
+            "node": "If /start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If /start": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Unknown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Unknown": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1"
+} 

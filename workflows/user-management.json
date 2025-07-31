@@ -1,0 +1,545 @@
+{
+  "name": "User Management Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "user-register",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "user-register-webhook",
+      "name": "User Register Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "user-register-webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "user-login",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "user-login-webhook",
+      "name": "User Login Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 500],
+      "webhookId": "user-login-webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "user-profile",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "user-profile-webhook",
+      "name": "User Profile Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 700],
+      "webhookId": "user-profile-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "required-fields",
+              "leftValue": "={{ $json.email && $json.password && $json.firstName }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-register-data",
+      "name": "Validate Register Data",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "required-fields",
+              "leftValue": "={{ $json.email && $json.password }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-login-data",
+      "name": "Validate Login Data",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auth-token",
+              "leftValue": "={{ $json.headers.authorization }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-auth-token",
+      "name": "Validate Auth Token",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 700]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "={{ $env.DATABASE_URL }}/users",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "name": "password",
+              "value": "={{ $('Crypto').hash($json.password, 'sha256') }}"
+            },
+            {
+              "name": "firstName",
+              "value": "={{ $json.firstName }}"
+            },
+            {
+              "name": "lastName",
+              "value": "={{ $json.lastName || '' }}"
+            },
+            {
+              "name": "telegramId",
+              "value": "={{ $json.telegramId || null }}"
+            },
+            {
+              "name": "plan",
+              "value": "basic"
+            },
+            {
+              "name": "balance",
+              "value": 0
+            },
+            {
+              "name": "createdAt",
+              "value": "={{ $now }}"
+            },
+            {
+              "name": "status",
+              "value": "active"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-user",
+      "name": "Create User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 200],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "url": "={{ $env.DATABASE_URL }}/users?email={{ $json.email }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "find-user",
+      "name": "Find User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 400],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "user-exists",
+              "leftValue": "={{ $json.data && $json.data.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "password-match",
+              "leftValue": "={{ $('Crypto').hash($('User Register Webhook').item.json.password, 'sha256') }}",
+              "rightValue": "={{ $json.data[0].password }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-user-credentials",
+      "name": "Validate User Credentials",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "url": "={{ $env.DATABASE_URL }}/users/{{ $('User Profile Webhook').item.json.headers.authorization.split(' ')[1] }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-user-profile",
+      "name": "Get User Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 600],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"message\": \"User registered successfully\", \"userId\": $json.id } }}",
+        "options": {}
+      },
+      "id": "register-success-response",
+      "name": "Register Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Invalid registration data\" } }}",
+        "options": {}
+      },
+      "id": "register-error-response",
+      "name": "Register Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"message\": \"Login successful\", \"token\": $('JWT').sign({ userId: $json.data[0].id, email: $json.data[0].email }, $env.JWT_SECRET, { expiresIn: '24h' }) } }}",
+        "options": {}
+      },
+      "id": "login-success-response",
+      "name": "Login Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Invalid credentials\" } }}",
+        "options": {}
+      },
+      "id": "login-error-response",
+      "name": "Login Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"user\": { \"id\": $json.id, \"email\": $json.email, \"firstName\": $json.firstName, \"lastName\": $json.lastName, \"plan\": $json.plan, \"balance\": $json.balance, \"createdAt\": $json.createdAt } } }}",
+        "options": {}
+      },
+      "id": "profile-success-response",
+      "name": "Profile Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Invalid authentication token\" } }}",
+        "options": {}
+      },
+      "id": "profile-error-response",
+      "name": "Profile Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Invalid login data\" } }}",
+        "options": {}
+      },
+      "id": "login-validation-error",
+      "name": "Login Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 500]
+    }
+  ],
+  "connections": {
+    "User Register Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Register Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Login Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Login Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Profile Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Auth Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Register Data": {
+      "main": [
+        [
+          {
+            "node": "Create User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Register Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Login Data": {
+      "main": [
+        [
+          {
+            "node": "Find User",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Login Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Auth Token": {
+      "main": [
+        [
+          {
+            "node": "Get User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Profile Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User": {
+      "main": [
+        [
+          {
+            "node": "Register Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find User": {
+      "main": [
+        [
+          {
+            "node": "Validate User Credentials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate User Credentials": {
+      "main": [
+        [
+          {
+            "node": "Login Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Login Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Profile": {
+      "main": [
+        [
+          {
+            "node": "Profile Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "user-management",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "user-management",
+      "name": "user-management"
+    }
+  ]
+} 

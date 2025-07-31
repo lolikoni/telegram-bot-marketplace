@@ -1,0 +1,758 @@
+{
+  "name": "Payment System Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-payment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "create-payment-webhook",
+      "name": "Create Payment Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "create-payment-webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "payment-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "payment-webhook",
+      "name": "Payment Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 500],
+      "webhookId": "payment-webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "payment-history",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "payment-history-webhook",
+      "name": "Payment History Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 700],
+      "webhookId": "payment-history-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "required-fields",
+              "leftValue": "={{ $json.userId && $json.plan && $json.amount }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-payment-data",
+      "name": "Validate Payment Data",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "webhook-signature",
+              "leftValue": "={{ $json.headers['stripe-signature'] || $json.headers['telegram-signature'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-webhook-signature",
+      "name": "Validate Webhook Signature",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "auth-token",
+              "leftValue": "={{ $json.headers.authorization }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-auth-token",
+      "name": "Validate Auth Token",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 700]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "url": "={{ $env.DATABASE_URL }}/users/{{ $json.userId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-user-info",
+      "name": "Get User Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 200],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.stripe.com/v1/payment_intents",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.STRIPE_SECRET_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "amount",
+              "value": "={{ $json.amount * 100 }}"
+            },
+            {
+              "name": "currency",
+              "value": "rub"
+            },
+            {
+              "name": "metadata[user_id]",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "metadata[plan]",
+              "value": "={{ $json.plan }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ 'Payment for ' + $json.plan + ' plan' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-stripe-payment",
+      "name": "Create Stripe Payment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300],
+      "credentials": {
+        "stripeApi": {
+          "id": "stripe-api-credentials",
+          "name": "Stripe API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/createInvoiceLink",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ 'Payment for ' + $json.plan + ' plan' }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ 'Purchase ' + $json.plan + ' plan for card creation service' }}"
+            },
+            {
+              "name": "payload",
+              "value": "={{ $json.userId + '_' + $json.plan }}"
+            },
+            {
+              "name": "provider_token",
+              "value": "={{ $env.PAYMENT_PROVIDER_TOKEN }}"
+            },
+            {
+              "name": "currency",
+              "value": "RUB"
+            },
+            {
+              "name": "prices",
+              "value": "={{ '[{\"label\":\"' + $json.plan + ' plan\",\"amount\":' + ($json.amount * 100) + '}]' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-telegram-payment",
+      "name": "Create Telegram Payment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-api-credentials",
+          "name": "Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "payment-provider",
+              "leftValue": "={{ $json.paymentProvider }}",
+              "rightValue": "stripe",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-payment-provider",
+      "name": "Check Payment Provider",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "={{ $env.DATABASE_URL }}/payments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "amount",
+              "value": "={{ $json.amount }}"
+            },
+            {
+              "name": "plan",
+              "value": "={{ $json.plan }}"
+            },
+            {
+              "name": "paymentId",
+              "value": "={{ $('Create Stripe Payment').item.json.id || $('Create Telegram Payment').item.json.result }}"
+            },
+            {
+              "name": "provider",
+              "value": "={{ $json.paymentProvider }}"
+            },
+            {
+              "name": "status",
+              "value": "pending"
+            },
+            {
+              "name": "createdAt",
+              "value": "={{ $now }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-payment-record",
+      "name": "Save Payment Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "stripe-webhook",
+              "leftValue": "={{ $json.headers['stripe-signature'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-stripe-webhook",
+      "name": "Check Stripe Webhook",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "={{ $env.DATABASE_URL }}/payments/{{ $json.data.object.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "={{ $json.data.object.status === 'succeeded' ? 'completed' : 'failed' }}"
+            },
+            {
+              "name": "updatedAt",
+              "value": "={{ $now }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-payment-status",
+      "name": "Update Payment Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 400],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "url": "={{ $env.DATABASE_URL }}/payments?userId={{ $json.userId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-payment-history",
+      "name": "Get Payment History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 600],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"paymentUrl\": $('Create Stripe Payment').item.json.client_secret ? 'https://checkout.stripe.com/pay/' + $('Create Stripe Payment').item.json.id : $('Create Telegram Payment').item.json.result } }}",
+        "options": {}
+      },
+      "id": "payment-success-response",
+      "name": "Payment Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Invalid payment data\" } }}",
+        "options": {}
+      },
+      "id": "payment-error-response",
+      "name": "Payment Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"message\": \"Payment processed successfully\" } }}",
+        "options": {}
+      },
+      "id": "webhook-success-response",
+      "name": "Webhook Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Invalid webhook signature\" } }}",
+        "options": {}
+      },
+      "id": "webhook-error-response",
+      "name": "Webhook Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"payments\": $json.data } }}",
+        "options": {}
+      },
+      "id": "history-success-response",
+      "name": "History Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Invalid authentication token\" } }}",
+        "options": {}
+      },
+      "id": "history-error-response",
+      "name": "History Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 700]
+    }
+  ],
+  "connections": {
+    "Create Payment Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Payment Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Webhook Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment History Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Auth Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payment Data": {
+      "main": [
+        [
+          {
+            "node": "Get User Info",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Payment Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Webhook Signature": {
+      "main": [
+        [
+          {
+            "node": "Check Stripe Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Webhook Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Auth Token": {
+      "main": [
+        [
+          {
+            "node": "Get Payment History",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "History Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Info": {
+      "main": [
+        [
+          {
+            "node": "Check Payment Provider",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Payment Provider": {
+      "main": [
+        [
+          {
+            "node": "Create Stripe Payment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Telegram Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Stripe Payment": {
+      "main": [
+        [
+          {
+            "node": "Save Payment Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Telegram Payment": {
+      "main": [
+        [
+          {
+            "node": "Save Payment Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Payment Record": {
+      "main": [
+        [
+          {
+            "node": "Payment Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Stripe Webhook": {
+      "main": [
+        [
+          {
+            "node": "Update Payment Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Webhook Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Payment Status": {
+      "main": [
+        [
+          {
+            "node": "Webhook Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Payment History": {
+      "main": [
+        [
+          {
+            "node": "History Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "payment-system",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "payment-system",
+      "name": "payment-system"
+    }
+  ]
+} 

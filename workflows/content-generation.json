@@ -1,0 +1,609 @@
+{
+  "name": "Content Generation Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-content",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "generate-content-webhook",
+      "name": "Generate Content Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "generate-content-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "required-fields",
+              "leftValue": "={{ $json.productName && $json.category && $json.userId }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-content-request",
+      "name": "Validate Content Request",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "url": "={{ $env.DATABASE_URL }}/users/{{ $json.userId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-user-balance",
+      "name": "Check User Balance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 200],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "sufficient-balance",
+              "leftValue": "={{ $json.balance > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-balance-sufficient",
+      "name": "Check Balance Sufficient",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "{{ $env.OPENAI_MODEL }}"
+            },
+            {
+              "name": "messages",
+              "value": "={{ '[{\"role\":\"system\",\"content\":\"Ты профессиональный копирайтер для маркетплейсов. Создавай продающие описания товаров, которые привлекают внимание покупателей и увеличивают продажи. Используй эмоциональные триггеры, подчеркивай преимущества и создавай ощущение срочности.\"},{\"role\":\"user\",\"content\":\"Создай продающее описание для товара: ' + $('Generate Content Webhook').item.json.productName + ' в категории ' + $('Generate Content Webhook').item.json.category + '. Основные характеристики: ' + ($('Generate Content Webhook').item.json.characteristics || 'не указаны') + '. Цена: ' + ($('Generate Content Webhook').item.json.price || 'не указана') + ' рублей. Создай описание в формате JSON с полями: title, description, features, benefits, callToAction\"}]' }}"
+            },
+            {
+              "name": "max_tokens",
+              "value": "{{ $env.OPENAI_MAX_TOKENS }}"
+            },
+            {
+              "name": "temperature",
+              "value": 0.7
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-product-description",
+      "name": "Generate Product Description",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 200],
+      "credentials": {
+        "openaiApi": {
+          "id": "openai-api-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "{{ $env.OPENAI_MODEL }}"
+            },
+            {
+              "name": "messages",
+              "value": "={{ '[{\"role\":\"system\",\"content\":\"Ты эксперт по цветовым схемам и дизайну. Создавай гармоничные цветовые палитры для товаров, которые подчеркивают их особенности и привлекают внимание покупателей.\"},{\"role\":\"user\",\"content\":\"Создай цветовую схему для товара: ' + $('Generate Content Webhook').item.json.productName + ' в категории ' + $('Generate Content Webhook').item.json.category + '. Верни результат в формате JSON с полями: primaryColor, secondaryColor, accentColor, backgroundColor, textColor\"}]' }}"
+            },
+            {
+              "name": "max_tokens",
+              "value": 500
+            },
+            {
+              "name": "temperature",
+              "value": 0.8
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-color-scheme",
+      "name": "Generate Color Scheme",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300],
+      "credentials": {
+        "openaiApi": {
+          "id": "openai-api-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.replicate.com/v1/predictions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Token {{ $env.REPLICATE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "version",
+              "value": "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf"
+            },
+            {
+              "name": "input",
+              "value": "={{ 'Professional product photo of ' + $('Generate Content Webhook').item.json.productName + ' in ' + $('Generate Content Webhook').item.json.category + ' category, high quality, studio lighting, white background, commercial photography style' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-product-image",
+      "name": "Generate Product Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 400],
+      "credentials": {
+        "replicateApi": {
+          "id": "replicate-api-credentials",
+          "name": "Replicate API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "{{ $env.OPENAI_MODEL }}"
+            },
+            {
+              "name": "messages",
+              "value": "={{ '[{\"role\":\"system\",\"content\":\"Ты эксперт по SEO и маркетингу. Создавай ключевые слова и теги для товаров, которые помогут им лучше находиться в поиске и привлекать целевую аудиторию.\"},{\"role\":\"user\",\"content\":\"Создай SEO-оптимизированные ключевые слова для товара: ' + $('Generate Content Webhook').item.json.productName + ' в категории ' + $('Generate Content Webhook').item.json.category + '. Верни результат в формате JSON с полями: keywords, tags, metaTitle, metaDescription\"}]' }}"
+            },
+            {
+              "name": "max_tokens",
+              "value": 300
+            },
+            {
+              "name": "temperature",
+              "value": 0.6
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-seo-content",
+      "name": "Generate SEO Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 500],
+      "credentials": {
+        "openaiApi": {
+          "id": "openai-api-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "={{ $env.DATABASE_URL }}/content",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{ $('Generate Content Webhook').item.json.userId }}"
+            },
+            {
+              "name": "productName",
+              "value": "={{ $('Generate Content Webhook').item.json.productName }}"
+            },
+            {
+              "name": "category",
+              "value": "={{ $('Generate Content Webhook').item.json.category }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $('Generate Product Description').item.json.choices[0].message.content }}"
+            },
+            {
+              "name": "colorScheme",
+              "value": "={{ $('Generate Color Scheme').item.json.choices[0].message.content }}"
+            },
+            {
+              "name": "seoContent",
+              "value": "={{ $('Generate SEO Content').item.json.choices[0].message.content }}"
+            },
+            {
+              "name": "imageUrl",
+              "value": "={{ $('Generate Product Image').item.json.output ? $('Generate Product Image').item.json.output[0] : null }}"
+            },
+            {
+              "name": "createdAt",
+              "value": "={{ $now }}"
+            },
+            {
+              "name": "status",
+              "value": "completed"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-generated-content",
+      "name": "Save Generated Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 300],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "={{ $env.DATABASE_URL }}/users/{{ $('Generate Content Webhook').item.json.userId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DATABASE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "balance",
+              "value": "={{ $('Check User Balance').item.json.balance - 1 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "deduct-user-balance",
+      "name": "Deduct User Balance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 400],
+      "credentials": {
+        "databaseApi": {
+          "id": "database-api-credentials",
+          "name": "Database API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"content\": { \"description\": $('Generate Product Description').item.json.choices[0].message.content, \"colorScheme\": $('Generate Color Scheme').item.json.choices[0].message.content, \"seoContent\": $('Generate SEO Content').item.json.choices[0].message.content, \"imageUrl\": $('Generate Product Image').item.json.output ? $('Generate Product Image').item.json.output[0] : null, \"contentId\": $('Save Generated Content').item.json.id } } }}",
+        "options": {}
+      },
+      "id": "content-success-response",
+      "name": "Content Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Invalid content request data\" } }}",
+        "options": {}
+      },
+      "id": "content-validation-error",
+      "name": "Content Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"message\": \"Insufficient balance. Please top up your account.\" } }}",
+        "options": {}
+      },
+      "id": "insufficient-balance-error",
+      "name": "Insufficient Balance Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 200]
+    }
+  ],
+  "connections": {
+    "Generate Content Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Content Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Content Request": {
+      "main": [
+        [
+          {
+            "node": "Check User Balance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Content Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check User Balance": {
+      "main": [
+        [
+          {
+            "node": "Check Balance Sufficient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Balance Sufficient": {
+      "main": [
+        [
+          {
+            "node": "Generate Product Description",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insufficient Balance Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Product Description": {
+      "main": [
+        [
+          {
+            "node": "Generate Color Scheme",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Color Scheme": {
+      "main": [
+        [
+          {
+            "node": "Generate Product Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Product Image": {
+      "main": [
+        [
+          {
+            "node": "Generate SEO Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate SEO Content": {
+      "main": [
+        [
+          {
+            "node": "Save Generated Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Generated Content": {
+      "main": [
+        [
+          {
+            "node": "Deduct User Balance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduct User Balance": {
+      "main": [
+        [
+          {
+            "node": "Content Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "content-generation",
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "content-generation",
+      "name": "content-generation"
+    }
+  ]
+} 
